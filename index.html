@@ -14,6 +14,7 @@ export default function ApifyCrawlerForm() {
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // 台灣主要城市選項
   const taiwanCities = [
@@ -78,14 +79,20 @@ export default function ApifyCrawlerForm() {
     }
   };
 
-  // 送至 n8n (模擬)
+  // 送至 n8n
   const sendToN8N = async () => {
-    setSending(true);
+    const filteredSearchStrings = formData.searchStringsArray.filter(s => s.trim() !== '');
     
-    // 這裡是模擬送至 n8n 的 API 呼叫
-    // 實際使用時請替換為您的 n8n webhook URL
+    if (filteredSearchStrings.length === 0) {
+      alert('請至少輸入一個搜尋關鍵字！');
+      return;
+    }
+
+    setSending(true);
+    setSuccess(false);
+    
     try {
-      const response = await fetch('/api/n8n-webhook', {
+      const response = await fetch('https://xin03.zeabur.app/webhook/apify001', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,86 +101,107 @@ export default function ApifyCrawlerForm() {
       });
       
       if (response.ok) {
-        alert('資料已成功送至 n8n！');
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 5000);
       } else {
-        alert('送出失敗，請稍後再試。');
+        alert(`送出失敗：${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      // 由於這是示範，我們顯示成功訊息
-      setTimeout(() => {
-        alert('資料已準備好送至 n8n！');
-        setSending(false);
-      }, 1500);
-      return;
+      console.error('網路錯誤:', error);
+      alert('送出失敗，請檢查網路連線或稍後再試。');
     }
     
     setSending(false);
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Google Maps 爬蟲設定</h1>
-        <p className="text-gray-600">設定您的搜尋條件，系統將自動生成 JSON 格式並送至 n8n 進行自動化處理</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Google Maps 資料爬蟲</h1>
+              <p className="text-sm text-gray-600">快速設定並啟動您的資料收集任務</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-6">
-        {/* 城市選擇 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              搜尋城市 <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={formData.city}
-              onChange={(e) => setFormData({...formData, city: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {taiwanCities.map(city => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        {/* Success Alert */}
+        {success && (
+          <div className="mb-8 bg-green-50 border border-green-200 rounded-xl p-4 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <Check className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h3 className="text-green-800 font-semibold">任務提交成功！</h3>
+                <p className="text-green-700 text-sm">您的爬蟲任務已開始執行，請稍後查看結果。</p>
+              </div>
+            </div>
           </div>
+        )}
 
-          {/* 每次搜尋最大爬取數量 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              每次搜尋最大爬取數量
-            </label>
-            <input
-              type="number"
-              min="1"
-              max="100"
-              value={formData.maxCrawledPlacesPerSearch}
-              onChange={(e) => setFormData({...formData, maxCrawledPlacesPerSearch: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="預設：5"
-            />
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Main Form */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200">
+                <h2 className="text-xl font-semibold text-gray-900">設定搜尋條件</h2>
+                <p className="text-gray-600 text-sm mt-1">填入您想要爬取的地點和條件</p>
+              </div>
+
+              <div className="p-8 space-y-8">
+        {/* 城市選擇 */}
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+            搜尋地區
+          </label>
+          <select
+            value={formData.city}
+            onChange={(e) => setFormData({...formData, city: e.target.value})}
+            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-200 text-lg"
+          >
+            {taiwanCities.map(city => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
         </div>
 
         {/* 搜尋關鍵字 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            搜尋關鍵字 <span className="text-red-500">*</span>
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            搜尋關鍵字
+            <span className="text-red-500 text-sm">*</span>
           </label>
-          <div className="space-y-2">
+          <div className="space-y-3">
             {formData.searchStringsArray.map((searchString, index) => (
-              <div key={index} className="flex gap-2">
-                <input
-                  type="text"
-                  value={searchString}
-                  onChange={(e) => updateSearchString(index, e.target.value)}
-                  placeholder="例如：保健食品、餐廳、美容院"
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div key={index} className="flex gap-3">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={searchString}
+                    onChange={(e) => updateSearchString(index, e.target.value)}
+                    placeholder="例如：保健食品、餐廳、美容院"
+                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:bg-white transition-all duration-200 text-lg"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => removeSearchString(index)}
                   disabled={formData.searchStringsArray.length === 1}
-                  className="px-3 py-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                  className="w-12 h-12 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all duration-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={20} />
                 </button>
               </div>
             ))}
@@ -181,106 +209,197 @@ export default function ApifyCrawlerForm() {
           <button
             type="button"
             onClick={addSearchString}
-            className="mt-2 flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+            className="flex items-center gap-2 px-4 py-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200"
           >
-            <Plus size={16} />
+            <Plus size={18} />
             新增關鍵字
           </button>
         </div>
 
-        {/* 最低評分篩選 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              最低評分篩選 (可選)
-            </label>
-            <select
-              value={formData.placeMinimumStars}
-              onChange={(e) => setFormData({...formData, placeMinimumStars: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">不篩選</option>
-              <option value="1">1 星以上</option>
-              <option value="2">2 星以上</option>
-              <option value="3">3 星以上</option>
-              <option value="4">4 星以上</option>
-              <option value="5">5 星</option>
-            </select>
-          </div>
-
-          {/* 網站資訊篩選 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              網站資訊篩選
-            </label>
-            <select
-              value={formData.website}
-              onChange={(e) => setFormData({...formData, website: e.target.value})}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="allPlaces">所有地點</option>
-              <option value="onlyPlacesWithWebsite">僅有網站的地點</option>
-              <option value="onlyPlacesWithoutWebsite">僅無網站的地點</option>
-            </select>
-          </div>
-        </div>
-
-        {/* 搜尋匹配方式 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            搜尋匹配方式
+        {/* 進階設定 */}
+        <div className="space-y-6">
+          <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+            <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+            進階設定
           </label>
-          <select
-            value={formData.searchMatching}
-            onChange={(e) => setFormData({...formData, searchMatching: e.target.value})}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">全部匹配</option>
-            <option value="exact">精確匹配</option>
-          </select>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 每次搜尋最大爬取數量 */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                每次搜尋最大爬取數量
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={formData.maxCrawledPlacesPerSearch}
+                onChange={(e) => setFormData({...formData, maxCrawledPlacesPerSearch: e.target.value})}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+                placeholder="預設：5"
+              />
+            </div>
+
+            {/* 最低評分篩選 */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                最低評分篩選
+              </label>
+              <select
+                value={formData.placeMinimumStars}
+                onChange={(e) => setFormData({...formData, placeMinimumStars: e.target.value})}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+              >
+                <option value="">不篩選</option>
+                <option value="1">⭐ 1 星以上</option>
+                <option value="2">⭐ 2 星以上</option>
+                <option value="3">⭐ 3 星以上</option>
+                <option value="4">⭐ 4 星以上</option>
+                <option value="5">⭐ 5 星</option>
+              </select>
+            </div>
+
+            {/* 網站資訊篩選 */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                網站資訊篩選
+              </label>
+              <select
+                value={formData.website}
+                onChange={(e) => setFormData({...formData, website: e.target.value})}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+              >
+                <option value="allPlaces">🌐 所有地點</option>
+                <option value="onlyPlacesWithWebsite">✅ 僅有網站的地點</option>
+                <option value="onlyPlacesWithoutWebsite">❌ 僅無網站的地點</option>
+              </select>
+            </div>
+
+            {/* 搜尋匹配方式 */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                搜尋匹配方式
+              </label>
+              <select
+                value={formData.searchMatching}
+                onChange={(e) => setFormData({...formData, searchMatching: e.target.value})}
+                className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition-all duration-200"
+              >
+                <option value="all">🔍 全部匹配</option>
+                <option value="exact">🎯 精確匹配</option>
+              </select>
+            </div>
+          </div>
         </div>
+              </div>
+            </div>
+          </div>
 
-        {/* 操作按鈕 */}
-        <div className="flex flex-wrap gap-4 pt-6 border-t">
-          <button
-            type="button"
-            onClick={() => setShowPreview(!showPreview)}
-            className="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
-          >
-            <Eye size={18} />
-            {showPreview ? '隱藏' : '預覽'} JSON
-          </button>
+          {/* Sidebar - Actions & Preview */}
+          <div className="space-y-6">
+            {/* Action Panel */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">執行動作</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl transition-all duration-200 border-2 border-transparent hover:border-gray-200"
+                >
+                  <Eye size={20} />
+                  {showPreview ? '隱藏預覽' : '預覽 JSON'}
+                </button>
 
-          <button
-            type="button"
-            onClick={copyToClipboard}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
-          >
-            {copied ? <Check size={18} /> : <Copy size={18} />}
-            {copied ? '已複製' : '複製 JSON'}
-          </button>
+                <button
+                  type="button"
+                  onClick={copyToClipboard}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition-all duration-200 border-2 border-transparent hover:border-blue-200"
+                >
+                  {copied ? <Check size={20} /> : <Copy size={20} />}
+                  {copied ? '已複製！' : '複製 JSON'}
+                </button>
 
-          <button
-            type="button"
-            onClick={sendToN8N}
-            disabled={sending || formData.searchStringsArray.every(s => s.trim() === '')}
-            className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md transition-colors disabled:cursor-not-allowed"
-          >
-            <Send size={18} />
-            {sending ? '送出中...' : '送至 n8n'}
-          </button>
+                <button
+                  type="button"
+                  onClick={sendToN8N}
+                  disabled={sending || formData.searchStringsArray.every(s => s.trim() === '')}
+                  className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-400 disabled:to-gray-400 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed disabled:shadow-none transform hover:-translate-y-0.5 disabled:transform-none"
+                >
+                  <Send size={20} />
+                  {sending ? '執行中...' : '開始爬取'}
+                </button>
+                
+                <div className="text-xs text-gray-500 text-center">
+                  點擊「開始爬取」將資料送至 n8n 自動化流程
+                </div>
+              </div>
+            </div>
+
+            {/* Info Panel */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl p-6 border border-blue-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-blue-900">使用說明</h3>
+              </div>
+              <ul className="space-y-2 text-sm text-blue-800">
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+                  選擇台灣地區城市
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+                  輸入搜尋關鍵字（必填）
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+                  設定進階篩選條件
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
+                  點擊開始爬取執行任務
+                </li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* JSON 預覽 */}
         {showPreview && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">JSON 預覽</h3>
-            <pre className="bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto text-sm">
-              {JSON.stringify(generateApifyJson(), null, 2)}
-            </pre>
+          <div className="mt-8 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">JSON 預覽</h3>
+              <button
+                onClick={copyToClipboard}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                {copied ? '已複製' : '複製'}
+              </button>
+            </div>
+            <div className="p-8">
+              <pre className="bg-gray-900 text-gray-100 p-6 rounded-xl overflow-auto text-sm leading-relaxed">
+                {JSON.stringify(generateApifyJson(), null, 2)}
+              </pre>
+            </div>
           </div>
         )}
       </div>
+      
+      <style jsx>{`
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 }
