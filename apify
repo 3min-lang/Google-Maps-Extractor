@@ -1,0 +1,286 @@
+import React, { useState } from 'react';
+import { Plus, Trash2, Send, Eye, Copy, Check } from 'lucide-react';
+
+export default function ApifyCrawlerForm() {
+  const [formData, setFormData] = useState({
+    city: '台北市',
+    maxCrawledPlacesPerSearch: 5,
+    searchStringsArray: [''],
+    placeMinimumStars: '',
+    website: 'allPlaces',
+    searchMatching: 'all'
+  });
+  
+  const [showPreview, setShowPreview] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+
+  // 台灣主要城市選項
+  const taiwanCities = [
+    '台北市', '新北市', '桃園市', '台中市', '台南市', '高雄市',
+    '基隆市', '新竹市', '嘉義市', '新竹縣', '苗栗縣', '彰化縣',
+    '南投縣', '雲林縣', '嘉義縣', '屏東縣', '宜蘭縣', '花蓮縣',
+    '台東縣', '澎湖縣', '金門縣', '連江縣'
+  ];
+
+  // 生成要送給 Apify 的 JSON
+  const generateApifyJson = () => {
+    const filteredSearchStrings = formData.searchStringsArray.filter(s => s.trim() !== '');
+    
+    return {
+      city: formData.city,
+      countryCode: "tw",
+      language: "zh-TW",
+      maxCrawledPlacesPerSearch: parseInt(formData.maxCrawledPlacesPerSearch) || 5,
+      searchStringsArray: filteredSearchStrings,
+      skipClosedPlaces: true,
+      placeMinimumStars: formData.placeMinimumStars || "",
+      website: formData.website,
+      searchMatching: formData.searchMatching
+    };
+  };
+
+  // 新增搜尋關鍵字欄位
+  const addSearchString = () => {
+    setFormData({
+      ...formData,
+      searchStringsArray: [...formData.searchStringsArray, '']
+    });
+  };
+
+  // 移除搜尋關鍵字欄位
+  const removeSearchString = (index) => {
+    const newArray = formData.searchStringsArray.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      searchStringsArray: newArray.length > 0 ? newArray : ['']
+    });
+  };
+
+  // 更新搜尋關鍵字
+  const updateSearchString = (index, value) => {
+    const newArray = [...formData.searchStringsArray];
+    newArray[index] = value;
+    setFormData({
+      ...formData,
+      searchStringsArray: newArray
+    });
+  };
+
+  // 複製 JSON 到剪貼簿
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(generateApifyJson(), null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('複製失敗:', err);
+    }
+  };
+
+  // 送至 n8n (模擬)
+  const sendToN8N = async () => {
+    setSending(true);
+    
+    // 這裡是模擬送至 n8n 的 API 呼叫
+    // 實際使用時請替換為您的 n8n webhook URL
+    try {
+      const response = await fetch('/api/n8n-webhook', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(generateApifyJson())
+      });
+      
+      if (response.ok) {
+        alert('資料已成功送至 n8n！');
+      } else {
+        alert('送出失敗，請稍後再試。');
+      }
+    } catch (error) {
+      // 由於這是示範，我們顯示成功訊息
+      setTimeout(() => {
+        alert('資料已準備好送至 n8n！');
+        setSending(false);
+      }, 1500);
+      return;
+    }
+    
+    setSending(false);
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Google Maps 爬蟲設定</h1>
+        <p className="text-gray-600">設定您的搜尋條件，系統將自動生成 JSON 格式並送至 n8n 進行自動化處理</p>
+      </div>
+
+      <div className="space-y-6">
+        {/* 城市選擇 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              搜尋城市 <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.city}
+              onChange={(e) => setFormData({...formData, city: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {taiwanCities.map(city => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 每次搜尋最大爬取數量 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              每次搜尋最大爬取數量
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={formData.maxCrawledPlacesPerSearch}
+              onChange={(e) => setFormData({...formData, maxCrawledPlacesPerSearch: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="預設：5"
+            />
+          </div>
+        </div>
+
+        {/* 搜尋關鍵字 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            搜尋關鍵字 <span className="text-red-500">*</span>
+          </label>
+          <div className="space-y-2">
+            {formData.searchStringsArray.map((searchString, index) => (
+              <div key={index} className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchString}
+                  onChange={(e) => updateSearchString(index, e.target.value)}
+                  placeholder="例如：保健食品、餐廳、美容院"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeSearchString(index)}
+                  disabled={formData.searchStringsArray.length === 1}
+                  className="px-3 py-2 text-red-600 hover:text-red-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={addSearchString}
+            className="mt-2 flex items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:text-blue-800"
+          >
+            <Plus size={16} />
+            新增關鍵字
+          </button>
+        </div>
+
+        {/* 最低評分篩選 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              最低評分篩選 (可選)
+            </label>
+            <select
+              value={formData.placeMinimumStars}
+              onChange={(e) => setFormData({...formData, placeMinimumStars: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">不篩選</option>
+              <option value="1">1 星以上</option>
+              <option value="2">2 星以上</option>
+              <option value="3">3 星以上</option>
+              <option value="4">4 星以上</option>
+              <option value="5">5 星</option>
+            </select>
+          </div>
+
+          {/* 網站資訊篩選 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              網站資訊篩選
+            </label>
+            <select
+              value={formData.website}
+              onChange={(e) => setFormData({...formData, website: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="allPlaces">所有地點</option>
+              <option value="onlyPlacesWithWebsite">僅有網站的地點</option>
+              <option value="onlyPlacesWithoutWebsite">僅無網站的地點</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 搜尋匹配方式 */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            搜尋匹配方式
+          </label>
+          <select
+            value={formData.searchMatching}
+            onChange={(e) => setFormData({...formData, searchMatching: e.target.value})}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">全部匹配</option>
+            <option value="exact">精確匹配</option>
+          </select>
+        </div>
+
+        {/* 操作按鈕 */}
+        <div className="flex flex-wrap gap-4 pt-6 border-t">
+          <button
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            className="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors"
+          >
+            <Eye size={18} />
+            {showPreview ? '隱藏' : '預覽'} JSON
+          </button>
+
+          <button
+            type="button"
+            onClick={copyToClipboard}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors"
+          >
+            {copied ? <Check size={18} /> : <Copy size={18} />}
+            {copied ? '已複製' : '複製 JSON'}
+          </button>
+
+          <button
+            type="button"
+            onClick={sendToN8N}
+            disabled={sending || formData.searchStringsArray.every(s => s.trim() === '')}
+            className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-md transition-colors disabled:cursor-not-allowed"
+          >
+            <Send size={18} />
+            {sending ? '送出中...' : '送至 n8n'}
+          </button>
+        </div>
+
+        {/* JSON 預覽 */}
+        {showPreview && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-md">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">JSON 預覽</h3>
+            <pre className="bg-gray-900 text-gray-100 p-4 rounded-md overflow-auto text-sm">
+              {JSON.stringify(generateApifyJson(), null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
