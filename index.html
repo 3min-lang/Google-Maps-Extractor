@@ -5,13 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Google Maps 資料爬蟲｜Apify 表單</title>
 
-  <!-- Tailwind CDN（快速原型，相容度高） -->
+  <!-- Tailwind（CDN 版，免建置） -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { theme: { extend: { fontFamily: { sans: ['system-ui', 'Noto Sans TC', 'ui-sans-serif','-apple-system','Segoe UI','Roboto','Helvetica','Arial','Apple Color Emoji','Segoe UI Emoji','Segoe UI Symbol'] }}}}
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['system-ui','Noto Sans TC','ui-sans-serif','-apple-system','Segoe UI','Roboto','Helvetica','Arial'] }
+        }
+      }
+    };
   </script>
 
-  <!-- React UMD + Babel（讓瀏覽器直接跑 JSX） -->
+  <!-- React + Babel（瀏覽器直接跑 JSX） -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -24,25 +30,25 @@
   <script type="text/babel">
     const { useState } = React;
 
-    // —— 簡單的 inline SVG 圖示（取代 lucide-react） ——
+    // 簡單的 inline SVG 圖示（取代 lucide-react）
     const Icon = {
-      plus:   (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5"/></svg>,
-      trash:  (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m3 0h8M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>,
-      send:   (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M22 2L11 13"/><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>,
-      eye:    (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7z"/><circle cx="12" cy="12" r="3" /></svg>,
-      copy:   (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2"/><rect x="8" y="8" width="12" height="12" rx="2"/></svg>,
-      check:  (cls="w-5 h-5") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>,
-      info:   (cls="w-4 h-4") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 22a10 10 0 100-20 10 10 0 000 20z"/></svg>
+      plus:(c="w-5 h-5") => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5"/></svg>,
+      trash:(c="w-5 h-5") => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m3 0h8M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>,
+      send:(c="w-5 h-5")  => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M22 2L11 13"/><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>,
+      eye:(c="w-5 h-5")   => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7z"/><circle cx="12" cy="12" r="3"/></svg>,
+      copy:(c="w-5 h-5")  => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2"/><rect x="8" y="8" width="12" height="12" rx="2"/></svg>,
+      check:(c="w-5 h-5") => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>,
+      info:(c="w-4 h-4")  => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 22a10 10 0 100-20 10 10 0 000 20z"/></svg>
     };
 
     function ApifyCrawlerForm() {
       const [formData, setFormData] = useState({
         city: '台北市',
-        maxCrawledPlacesPerSearch: 5,
+        maxCrawledPlacesPerSearch: 5,     // 直接存數字
         searchStringsArray: [''],
-        placeMinimumStars: '',
-        website: 'allPlaces',        // allPlaces | onlyWithWebsite
-        searchMatching: 'all'        // all | exact
+        placeMinimumStars: '',            // '' 或 數字 1-5
+        website: 'allPlaces',             // allPlaces | onlyWithWebsite
+        searchMatching: 'all'             // all | any | exact
       });
       const [showPreview, setShowPreview] = useState(false);
       const [copied, setCopied] = useState(false);
@@ -56,47 +62,50 @@
         '台東縣','澎湖縣','金門縣','連江縣'
       ];
 
-      // 產生 Apify JSON
+      // 產生 Apify JSON（關鍵：型別正確）
       const generateApifyJson = () => {
-        const filtered = formData.searchStringsArray.map(s=>s.trim()).filter(Boolean);
+        const filtered = formData.searchStringsArray.map(s => s.trim()).filter(Boolean);
         return {
           city: formData.city,
           countryCode: "tw",
           language: "zh-TW",
-          maxCrawledPlacesPerSearch: parseInt(formData.maxCrawledPlacesPerSearch) || 5,
+          maxCrawledPlacesPerSearch: Number(formData.maxCrawledPlacesPerSearch) || 5,
           searchStringsArray: filtered,
           skipClosedPlaces: true,
-          placeMinimumStars: formData.placeMinimumStars || "",
-          website: formData.website === 'onlyPlacesWithWebsite' ? 'onlyWithWebsite' : formData.website,
+          placeMinimumStars: formData.placeMinimumStars === '' ? '' : Number(formData.placeMinimumStars),
+          website: formData.website,            // allPlaces / onlyWithWebsite
           searchMatching: formData.searchMatching
         };
       };
 
       const addSearchString = () =>
-        setFormData(fd => ({...fd, searchStringsArray: [...fd.searchStringsArray, '']}));
+        setFormData(fd => ({ ...fd, searchStringsArray: [...fd.searchStringsArray, ''] }));
 
       const removeSearchString = (i) =>
         setFormData(fd => {
-          const arr = fd.searchStringsArray.filter((_,idx)=>idx!==i);
-          return {...fd, searchStringsArray: arr.length ? arr : ['']};
+          const arr = fd.searchStringsArray.filter((_, idx) => idx !== i);
+          return { ...fd, searchStringsArray: arr.length ? arr : [''] };
         });
 
       const updateSearchString = (i, val) =>
         setFormData(fd => {
-          const arr = [...fd.searchStringsArray]; arr[i] = val; return {...fd, searchStringsArray: arr};
+          const arr = [...fd.searchStringsArray];
+          arr[i] = val;
+          return { ...fd, searchStringsArray: arr };
         });
 
       const copyToClipboard = async () => {
         try {
           await navigator.clipboard.writeText(JSON.stringify(generateApifyJson(), null, 2));
           setCopied(true); setTimeout(()=>setCopied(false), 1500);
-        } catch(e) { alert('複製失敗，請手動選取'); }
+        } catch { alert('複製失敗，請手動選取。'); }
       };
 
-      const ENDPOINT_N8N = "https://xin03.zeabur.app/webhook/apify001"; // ← 改成你的 Webhook
+      const ENDPOINT_N8N = "https://xin03.zeabur.app/webhook/apify001"; // ← 換成你的 n8n Webhook
       const sendToN8N = async () => {
-        const has = formData.searchStringsArray.some(s => s.trim());
-        if (!has) { alert('請至少輸入一個搜尋關鍵字'); return; }
+        if (!formData.searchStringsArray.some(s => s.trim())) {
+          alert('請至少輸入一個搜尋關鍵字'); return;
+        }
         setSending(true); setSuccess(false);
         try {
           const r = await fetch(ENDPOINT_N8N, {
@@ -106,7 +115,7 @@
           });
           if (r.ok) { setSuccess(true); setTimeout(()=>setSuccess(false), 4000); }
           else { const t = await r.text(); alert('送出失敗：' + r.status + ' ' + t); }
-        } catch(e) { alert('網路錯誤：' + (e?.message||e)); }
+        } catch(e) { alert('網路錯誤：' + (e?.message || e)); }
         setSending(false);
       };
 
@@ -208,31 +217,39 @@
                       </label>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* 每次搜尋最大爬取數量（存數字） */}
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700">每次搜尋最大爬取數量</label>
-                          <input type="number" min="1" max="100"
+                          <input
+                            type="number" min="1" max="500"
                             value={formData.maxCrawledPlacesPerSearch}
-                            onChange={(e)=>setFormData({...formData, maxCrawledPlacesPerSearch:e.target.value})}
+                            onChange={(e)=>setFormData({...formData, maxCrawledPlacesPerSearch: Number(e.target.value) })}
                             className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
-                            placeholder="預設：5"/>
+                            placeholder="預設：5"
+                          />
                         </div>
 
+                        {/* 最低評分（轉數字或空字串） */}
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700">最低評分篩選</label>
                           <select
-                            value={formData.placeMinimumStars}
-                            onChange={(e)=>setFormData({...formData, placeMinimumStars:e.target.value})}
+                            value={formData.placeMinimumStars === '' ? '' : Number(formData.placeMinimumStars)}
+                            onChange={(e)=>setFormData({
+                              ...formData,
+                              placeMinimumStars: e.target.value === '' ? '' : Number(e.target.value)
+                            })}
                             className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
                           >
                             <option value="">不篩選</option>
-                            <option value="1">⭐ 1 星以上</option>
-                            <option value="2">⭐ 2 星以上</option>
-                            <option value="3">⭐ 3 星以上</option>
-                            <option value="4">⭐ 4 星以上</option>
-                            <option value="5">⭐ 5 星</option>
+                            <option value={1}>⭐ 1 星以上</option>
+                            <option value={2}>⭐ 2 星以上</option>
+                            <option value={3}>⭐ 3 星以上</option>
+                            <option value={4}>⭐ 4 星以上</option>
+                            <option value={5}>⭐ 5 星</option>
                           </select>
                         </div>
 
+                        {/* 網站資訊篩選（對齊 allPlaces/onlyWithWebsite） */}
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700">網站資訊篩選</label>
                           <select
@@ -245,6 +262,7 @@
                           </select>
                         </div>
 
+                        {/* 搜尋匹配方式 */}
                         <div className="space-y-2">
                           <label className="block text-sm font-medium text-gray-700">搜尋匹配方式</label>
                           <select
@@ -253,6 +271,7 @@
                             className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
                           >
                             <option value="all">🔍 全部匹配</option>
+                            <option value="any">🧩 任一匹配</option>
                             <option value="exact">🎯 精確匹配</option>
                           </select>
                         </div>
@@ -263,7 +282,7 @@
                 </div>
               </div>
 
-              {/* 右側動作區 */}
+              {/* 右側：動作 + 說明 */}
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                   <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-gray-200">
@@ -297,18 +316,10 @@
                     <h3 className="text-lg font-semibold text-blue-900">使用說明</h3>
                   </div>
                   <ul className="space-y-2 text-sm text-blue-800">
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 選擇台灣地區城市
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 輸入至少一個搜尋關鍵字
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> （可選）設定進階條件
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 送出後到後台查看結果
-                    </li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 選擇台灣地區城市</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 輸入至少一個搜尋關鍵字</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> （可選）設定進階條件</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 送出後到後台查看結果</li>
                   </ul>
                 </div>
               </div>
