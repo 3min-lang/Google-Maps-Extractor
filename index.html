@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Google Maps 資料爬蟲｜Apify 表單</title>
+  <title>Google Maps 資料爬蟲｜Apify 表單（地名轉英文 + 自訂半徑 Polygon）</title>
 
-  <!-- Tailwind（CDN 版，免建置） -->
+  <!-- Tailwind（CDN） -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -28,9 +28,9 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState } = React;
+    const { useState, useMemo } = React;
 
-    // 簡單的 inline SVG 圖示（取代 lucide-react）
+    // ——— icons ———
     const Icon = {
       plus:(c="w-5 h-5") => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5"/></svg>,
       trash:(c="w-5 h-5") => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M19 7l-1 12a2 2 0 01-2 2H8a2 2 0 01-2-2L5 7m3 0h8M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>,
@@ -41,41 +41,90 @@
       info:(c="w-4 h-4")  => <svg className={c} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M12 22a10 10 0 100-20 10 10 0 000 20z"/></svg>
     };
 
+    // 中文 → 英文 對照
+    const TW_CITY_TO_EN = {
+      '台北市': 'Taipei City', '新北市': 'New Taipei City', '桃園市': 'Taoyuan City',
+      '台中市': 'Taichung City', '台南市': 'Tainan City', '高雄市': 'Kaohsiung City',
+      '基隆市': 'Keelung City', '新竹市': 'Hsinchu City', '嘉義市': 'Chiayi City',
+      '新竹縣': 'Hsinchu County', '苗栗縣': 'Miaoli County', '彰化縣': 'Changhua County',
+      '南投縣': 'Nantou County', '雲林縣': 'Yunlin County', '嘉義縣': 'Chiayi County',
+      '屏東縣': 'Pingtung County', '宜蘭縣': 'Yilan County', '花蓮縣': 'Hualien County',
+      '台東縣': 'Taitung County', '澎湖縣': 'Penghu County', '金門縣': 'Kinmen County',
+      '連江縣': 'Lienchiang County'
+    };
+    const TAIWAN_CITIES = Object.keys(TW_CITY_TO_EN);
+
+    // 解析 Google Map 複製的 "lat, lng" 字串
+    function parseLatLng(input) {
+      if (!input) return null;
+      const s = String(input).trim().replace(/[，\s]+/g, ','); // 全形逗號/空白 → 逗號
+      const [a, b] = s.split(',').map(x => Number(x));
+      if (!isFinite(a) || !isFinite(b)) return null;
+      // 一般情況：第一個是 lat (-90~90)，第二個是 lng (-180~180)
+      let lat = a, lng = b;
+      if (Math.abs(a) > 90 || Math.abs(b) > 180) {
+        // 可能反了（使用者貼了 "lng, lat"）
+        lat = b; lng = a;
+      }
+      if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+      return { lat, lng };
+    }
+
+    // 由中心點 + 半徑（公尺）產生「方形 Polygon」（經度在前、緯度在後；最後一點封口）
+    function buildSquarePolygon({ lat, lng }, radiusMeters) {
+      const R = 6378137; // 地球半徑（WGS84）
+      const dLat = (radiusMeters / R) * (180 / Math.PI);
+      const dLng = (radiusMeters / (R * Math.cos((lat * Math.PI) / 180))) * (180 / Math.PI);
+      const latMin = lat - dLat, latMax = lat + dLat;
+      const lngMin = lng - dLng, lngMax = lng + dLng;
+
+      const ring = [
+        [lngMin, latMin],
+        [lngMin, latMax],
+        [lngMax, latMax],
+        [lngMax, latMin],
+        [lngMin, latMin], // 封口
+      ];
+      return {
+        type: "Polygon",
+        coordinates: [ring],
+      };
+    }
+
     function ApifyCrawlerForm() {
       const [formData, setFormData] = useState({
         city: '台北市',
-        maxCrawledPlacesPerSearch: 5,     // 直接存數字
+        maxCrawledPlacesPerSearch: 5,
         searchStringsArray: [''],
-        placeMinimumStars: '',            // '' 或 數字 1-5
-        website: 'allPlaces',             // allPlaces | onlyWithWebsite
-        searchMatching: 'all'             // all | any | exact
+        // 新增：中心座標（Google Map 直接複製），半徑（公尺）
+        centerLatLng: '',
+        radius: 1000, // 預設 1000m
       });
-      const [showPreview, setShowPreview] = useState(false);
+      const [showPreview, setShowPreview] = useState(true);
       const [copied, setCopied] = useState(false);
       const [sending, setSending] = useState(false);
       const [success, setSuccess] = useState(false);
 
-      const taiwanCities = [
-        '台北市','新北市','桃園市','台中市','台南市','高雄市',
-        '基隆市','新竹市','嘉義市','新竹縣','苗栗縣','彰化縣',
-        '南投縣','雲林縣','嘉義縣','屏東縣','宜蘭縣','花蓮縣',
-        '台東縣','澎湖縣','金門縣','連江縣'
-      ];
+      const cityEN = useMemo(() => TW_CITY_TO_EN[formData.city] || formData.city, [formData.city]);
+      const parsedCenter = useMemo(() => parseLatLng(formData.centerLatLng), [formData.centerLatLng]);
+      const customGeolocation = useMemo(() => {
+        if (!parsedCenter || !formData.radius || formData.radius <= 0) return null;
+        return buildSquarePolygon(parsedCenter, Number(formData.radius));
+      }, [parsedCenter, formData.radius]);
 
-      // 產生 Apify JSON（關鍵：型別正確）
+      // 產生 Apify JSON（符合你給的範例結構）
       const generateApifyJson = () => {
-        const filtered = formData.searchStringsArray.map(s => s.trim()).filter(Boolean);
-        return {
-          city: formData.city,
+        const keywords = formData.searchStringsArray.map(s => s.trim()).filter(Boolean);
+        const payload = {
+          city: cityEN,
           countryCode: "tw",
           language: "zh-TW",
-          maxCrawledPlacesPerSearch: Number(formData.maxCrawledPlacesPerSearch) || 5,
-          searchStringsArray: filtered,
+          maxCrawledPlacesPerSearch: Number(formData.maxCrawledPlacesPerSearch) || 3,
+          searchStringsArray: keywords,
           skipClosedPlaces: true,
-          placeMinimumStars: formData.placeMinimumStars === '' ? '' : Number(formData.placeMinimumStars),
-          website: formData.website,            // allPlaces / onlyWithWebsite
-          searchMatching: formData.searchMatching
         };
+        if (customGeolocation) payload.customGeolocation = customGeolocation;
+        return payload;
       };
 
       const addSearchString = () =>
@@ -90,8 +139,7 @@
       const updateSearchString = (i, val) =>
         setFormData(fd => {
           const arr = [...fd.searchStringsArray];
-          arr[i] = val;
-          return { ...fd, searchStringsArray: arr };
+          arr[i] = val; return { ...fd, searchStringsArray: arr };
         });
 
       const copyToClipboard = async () => {
@@ -130,7 +178,7 @@
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Google Maps 資料爬蟲</h1>
-                  <p className="text-sm text-gray-600">快速設定並啟動您的資料收集任務</p>
+                  <p className="text-sm text-gray-600">地名自動轉英文＋自訂半徑 Polygon</p>
                 </div>
               </div>
             </div>
@@ -157,12 +205,12 @@
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                   <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200">
                     <h2 className="text-xl font-semibold text-gray-900">設定搜尋條件</h2>
-                    <p className="text-gray-600 text-sm mt-1">填入您想要爬取的地點和條件</p>
+                    <p className="text-gray-600 text-sm mt-1">填入地點與條件，系統會輸出 Apify 所需 JSON</p>
                   </div>
 
                   <div className="p-8 space-y-8">
-                    {/* 城市 */}
-                    <div className="space-y-3">
+                    {/* 城市（中文選 → 英文輸出） */}
+                    <div className="space-y-2">
                       <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
                         <span className="w-2 h-2 bg-blue-500 rounded-full"></span> 搜尋地區
                       </label>
@@ -171,8 +219,9 @@
                         onChange={(e)=>setFormData({...formData, city:e.target.value})}
                         className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all duration-200 text-lg"
                       >
-                        {taiwanCities.map(c => <option key={c} value={c}>{c}</option>)}
+                        {TAIWAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
+                      <p className="text-xs text-gray-500">將輸出英文地名：<span className="font-semibold text-gray-700">{cityEN}</span></p>
                     </div>
 
                     {/* 關鍵字 */}
@@ -180,7 +229,6 @@
                       <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span> 搜尋關鍵字 <span className="text-red-500 text-sm">*</span>
                       </label>
-
                       <div className="space-y-3">
                         {formData.searchStringsArray.map((v, idx) => (
                           <div key={idx} className="flex gap-3">
@@ -188,7 +236,7 @@
                               type="text"
                               value={v}
                               onChange={(e)=>updateSearchString(idx, e.target.value)}
-                              placeholder="例如：保健食品、餐廳、美容院"
+                              placeholder="例如：餐廳、美容院、保健食品"
                               className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-green-500 focus:bg-white transition-all duration-200 text-lg"
                             />
                             <button
@@ -203,81 +251,77 @@
                           </div>
                         ))}
                       </div>
-
                       <button type="button" onClick={addSearchString}
                         className="flex items-center gap-2 px-4 py-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition">
                         {Icon.plus()} 新增關鍵字
                       </button>
                     </div>
 
-                    {/* 進階設定 */}
-                    <div className="space-y-6">
+                    {/* 自訂地理範圍（中心經緯度 + 半徑） */}
+                    <div className="space-y-4">
                       <label className="flex items-center gap-2 text-lg font-semibold text-gray-800">
-                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span> 進階設定
+                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span> 地理範圍（可選）
                       </label>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* 每次搜尋最大爬取數量（存數字） */}
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">中心經緯度（Google 地圖直接複製）</label>
+                        <input
+                          type="text"
+                          value={formData.centerLatLng}
+                          onChange={(e)=>setFormData({...formData, centerLatLng: e.target.value})}
+                          placeholder="例：25.08462713088979, 121.54978200125787（先緯度、後經度）"
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
+                        />
+                        <p className="text-xs text-gray-500">
+                          將自動轉為 Polygon（<b>[經度, 緯度]</b> 順序）。目前解析：
+                          <span className="ml-1 font-mono">
+                            {parsedCenter ? `${parsedCenter.lat.toFixed(6)}, ${parsedCenter.lng.toFixed(6)}` : '—'}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                         <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">每次搜尋最大爬取數量</label>
+                          <label className="block text-sm font-medium text-gray-700">半徑（公尺）</label>
                           <input
-                            type="number" min="1" max="500"
-                            value={formData.maxCrawledPlacesPerSearch}
-                            onChange={(e)=>setFormData({...formData, maxCrawledPlacesPerSearch: Number(e.target.value) })}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
-                            placeholder="預設：5"
+                            type="range" min="100" max="50000" step="100"
+                            value={formData.radius}
+                            onChange={(e)=>setFormData({...formData, radius: Number(e.target.value)})}
+                            className="w-full accent-purple-500"
                           />
                         </div>
-
-                        {/* 最低評分（轉數字或空字串） */}
                         <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">最低評分篩選</label>
-                          <select
-                            value={formData.placeMinimumStars === '' ? '' : Number(formData.placeMinimumStars)}
-                            onChange={(e)=>setFormData({
-                              ...formData,
-                              placeMinimumStars: e.target.value === '' ? '' : Number(e.target.value)
-                            })}
+                          <label className="block text-sm font-medium text-gray-700">數值微調</label>
+                          <input
+                            type="number" min="100" max="50000" step="50"
+                            value={formData.radius}
+                            onChange={(e)=>setFormData({...formData, radius: Number(e.target.value)})}
                             className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
-                          >
-                            <option value="">不篩選</option>
-                            <option value={1}>⭐ 1 星以上</option>
-                            <option value={2}>⭐ 2 星以上</option>
-                            <option value={3}>⭐ 3 星以上</option>
-                            <option value={4}>⭐ 4 星以上</option>
-                            <option value={5}>⭐ 5 星</option>
-                          </select>
-                        </div>
-
-                        {/* 網站資訊篩選（對齊 allPlaces/onlyWithWebsite） */}
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">網站資訊篩選</label>
-                          <select
-                            value={formData.website}
-                            onChange={(e)=>setFormData({...formData, website:e.target.value})}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
-                          >
-                            <option value="allPlaces">🌐 所有地點</option>
-                            <option value="onlyWithWebsite">✅ 僅有網站的地點</option>
-                          </select>
-                        </div>
-
-                        {/* 搜尋匹配方式 */}
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">搜尋匹配方式</label>
-                          <select
-                            value={formData.searchMatching}
-                            onChange={(e)=>setFormData({...formData, searchMatching:e.target.value})}
-                            className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-purple-500 focus:bg-white transition"
-                          >
-                            <option value="all">🔍 全部匹配</option>
-                            <option value="any">🧩 任一匹配</option>
-                            <option value="exact">🎯 精確匹配</option>
-                          </select>
+                          />
                         </div>
                       </div>
+
+                      {customGeolocation && (
+                        <div className="text-xs text-gray-600">
+                          已建立 Polygon：共 <b>{customGeolocation.coordinates[0].length}</b> 點（含封口），
+                          角落示例（[經度, 緯度]）：<span className="font-mono">
+                            {JSON.stringify(customGeolocation.coordinates[0][0])}
+                          </span>
+                        </div>
+                      )}
                     </div>
 
+                    {/* 最大爬取數量 */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">每次搜尋最大爬取數量</label>
+                      <input
+                        type="number" min="1" max="500"
+                        value={formData.maxCrawledPlacesPerSearch}
+                        onChange={(e)=>setFormData({...formData, maxCrawledPlacesPerSearch: Number(e.target.value) })}
+                        className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+                        placeholder="預設：5"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -294,7 +338,12 @@
                       {Icon.eye()} {showPreview ? '隱藏預覽' : '預覽 JSON'}
                     </button>
 
-                    <button type="button" onClick={copyToClipboard}
+                    <button type="button" onClick={async()=>{
+                      try{
+                        await navigator.clipboard.writeText(JSON.stringify(generateApifyJson(), null, 2));
+                        setCopied(true); setTimeout(()=>setCopied(false), 1500);
+                      }catch{ alert('複製失敗，請手動選取。'); }
+                    }}
                       className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition border-2 border-transparent hover:border-blue-200">
                       {copied ? Icon.check() : Icon.copy()} {copied ? '已複製！' : '複製 JSON'}
                     </button>
@@ -316,10 +365,10 @@
                     <h3 className="text-lg font-semibold text-blue-900">使用說明</h3>
                   </div>
                   <ul className="space-y-2 text-sm text-blue-800">
-                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 選擇台灣地區城市</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 選擇台灣地區城市（中文），系統會輸出英文地名</li>
                     <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 輸入至少一個搜尋關鍵字</li>
-                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> （可選）設定進階條件</li>
-                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 送出後到後台查看結果</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> （可選）貼上 Google Map 經緯度並拖動半徑 → 自動產生 Polygon</li>
+                    <li className="flex items-start gap-2"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2"></span> 送出後到 Apify/n8n 後台查看結果</li>
                   </ul>
                 </div>
               </div>
@@ -330,7 +379,11 @@
               <div className="mt-8 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-4 border-b border-gray-200 flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">JSON 預覽</h3>
-                  <button onClick={copyToClipboard}
+                  <button onClick={async()=>{
+                    try{ await navigator.clipboard.writeText(JSON.stringify(generateApifyJson(), null, 2));
+                      setCopied(true); setTimeout(()=>setCopied(false), 1500);
+                    }catch{ alert('複製失敗，請手動選取。'); }
+                  }}
                           className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition">
                     {copied ? Icon.check("w-4 h-4") : Icon.copy("w-4 h-4")} {copied ? '已複製' : '複製'}
                   </button>
